@@ -3,6 +3,7 @@ import os
 import re
 from sets import Set
 import math
+import pickle
 
 os.system('./../dataset/mku.sh')
 #print "DONE"
@@ -21,42 +22,48 @@ def getdata(filename):
         dataarray.append(split(lines[i]))
     return dataarray
 
-def Euclidean_Similarity(i,j,data):
-    listi = []
-    listj = []
-    commonmovielist = []
-    
-    for k in range(len(data)):
-        if(data[k][0]==i):
-            listi.append(data[k][1])
-        if(data[k][0]==j):
-            listj.append(data[k][1])
+#def Cosine_Similarity
+#def Pearson_cofficient
 
-    commonmovielist = [item for item in listi if item in listj]
+def Euclidean_Similarity(i,j,dictaux):
+    commonmovielist = set(dictaux[i].keys()).intersection(set(dictaux[j].keys()))
     ans = 0.0
-
-    for k in range(len(commonmovielist)):
-        for l in range(len(data)):
-            if(data[l][1]==commonmovielist[k]):
-                if(data[l][0]==i):
-                    valuei = int(data[l][2])
-                if(data[l][0]==j):
-                    valuej = int(data[l][2])
-        ans += pow(valuei-valuej,2)
+    for k in commonmovielist:
+        ans = ans + pow(int(dictaux[i][k])-int(dictaux[j][k]),2)
 
     if (ans==0.0):
         return 1000000000000
-
     return math.sqrt(ans)
+
+def compute_similarity(userinfo,maindict):
+    similarity = [[10000000 for x in xrange(len(userinfo))] for x in xrange(len(userinfo))] 
+    for i in range(len(userinfo)-1):
+        for j in range(i+1,len(userinfo)):
+            temp = 1/(1+Euclidean_Similarity(userinfo[i][0],userinfo[j][0],maindict))
+            similarity[i][j] = temp
+            similarity[j][i] = temp
+    return similarity            
 
 def k_similar_users(i,data,k):
     similarusers = []
-    for p in range(len(userinfo)/10):           #60 factor to be removed here
+    for p in range(len(userinfo)):
         j = userinfo[p][0]
         if(j!=i):
-            similarusers.append([j,1/Euclidean_Similarity(i,j,data)])
+            similarusers.append([j,similarity[int(i)-1][int(j)-1]])
     similarusers = sorted(similarusers,key=lambda a:a[1])
     return similarusers[0:k]
+
+
+def k_watched_users(i,similarity,dictaux,movie,k):
+    similarusers = []
+    for j in range(len(userinfo)):
+        if (j!=i):
+            if (movie in dictaux[userinfo[j][0]]):
+                similarusers.append([userinfo[j][0],float(dictaux[userinfo[j][0]][movie])])
+    similarusers = sorted(similarusers,key=lambda a:a[1])
+    if (len(similarusers)<k):
+        return similarusers
+    return similarusers[0:k]            
 
 def predict1(users,data,movie,dictaux):
     numerator = 0.0
@@ -64,16 +71,15 @@ def predict1(users,data,movie,dictaux):
     for j in range(len(users)):
         if (movie in dictaux[users[j][0]]):
             numerator = numerator + users[j][1]*float(dictaux[users[j][0]][movie])
-            denominator = denominator + users[j][1]
+        denominator = denominator + users[j][1]
     if (denominator == 0):
         return 0
     return numerator/denominator
 
 def build_dict(data):
     main = dict()
-    helper = dict()
     for i in range(len(userinfo)):
-        helper.clear()
+        helper=dict()
         for j in range(len(userratings)):
             if(userratings[j][0]==userinfo[i][0]):
                 helper[userratings[j][1]] = userratings[j][2]
@@ -89,17 +95,52 @@ userinfo = getdata('u.user')
 u1base = getdata('u1.base')
 u1test = getdata('u1.test')
 
-maindict = build_dict(userratings)
+
+
+'''
+print 'building_dictionary'
+maindict = build_dict(u1base)
+print 'building_similarity matrix'
+similarity = compute_similarity(userinfo,maindict)
+print 'done'
+
+output = open('initialdata.pkl','wb')
+pickle.dump(maindict,output)
+pickle.dump(similarity,output,-1)
+output.close()
+
+'''
+pkl_file = open('initialdata.pkl','rb')
+maindict = pickle.load(pkl_file)
+similarity = pickle.load(pkl_file)
+pkl_file.close()
+
+
 
 ans = 0
 
-for i in range(len(u1test)/2000):
+for i in range(len(u1test)):
+    #print u1test[i]
     similaruseri = k_similar_users(u1test[i][0],u1base,20)
+    #print similaruseri
+    #print "---------\n"
     x = predict1(similaruseri,u1base,u1test[i][1],maindict)
     print "Prediction "+ str(x)
     ans = ans + pow( x - int(u1test[i][2]),2)
-    print ans
+    #print ans
 
 print ans
 
+ans = 0
 
+for i in range(len(u1test)):
+    #print u1test[i]
+    similaruseri = k_watched_users(u1test[i][0],similarity,maindict,u1test[i][1],20)
+    #print similaruseri
+    #print "---------\n"
+    x = predict1(similaruseri,u1base,u1test[i][1],maindict)
+    #print "Prediction "+ str(x)
+    ans = ans + pow( x - int(u1test[i][2]),2)
+    #print ans
+
+print ans

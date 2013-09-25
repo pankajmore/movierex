@@ -4,8 +4,9 @@ import re
 from sets import Set
 import math
 import pickle
+import matplotlib.pyplot as plt
 
-os.system('./../dataset/mku.sh')
+#os.system('./../dataset/mku.sh')
 #print "DONE"
 
 def split(string):
@@ -44,7 +45,7 @@ def compute_similarity(userinfo,maindict):
             similarity[j][i] = temp
     return similarity            
 
-def k_similar_users(i,data,k):
+def k_similar_users(i,similarity,k):
     similarusers = []
     for p in range(len(userinfo)):
         j = userinfo[p][0]
@@ -76,71 +77,72 @@ def predict1(users,data,movie,dictaux):
         return 0
     return numerator/denominator
 
-def build_dict(data):
+def build_dict(data,userinfo):
     main = dict()
     for i in range(len(userinfo)):
         helper=dict()
-        for j in range(len(userratings)):
-            if(userratings[j][0]==userinfo[i][0]):
-                helper[userratings[j][1]] = userratings[j][2]
+        for j in range(len(data)):
+            if(data[j][0]==userinfo[i][0]):
+                helper[data[j][1]] = data[j][2]
         main[userinfo[i][0]] = helper
     return main
 
 
-userratings = getdata('u.data')
-movies = getdata('u.item')
-genres = getdata('u.genre')
+#userratings = getdata('u.data')
+#movies = getdata('u.item')
+#genres = getdata('u.genre')
 userinfo = getdata('u.user')
 
-u1base = getdata('u1.base')
-u1test = getdata('u1.test')
+
+for i in range(2,6):
+    u1base = getdata('u'+str(i)+'.base')
+    u1test = getdata('u'+str(i)+'.test')
+    '''
+    print 'building_dictionary'
+    maindict = build_dict(u1base,userinfo)
+    print 'building_similarity matrix'
+    similarity = compute_similarity(userinfo,maindict)
+    print 'done'
+    output = open('initialdata'+str(i)+'.pkl','wb')
+    pickle.dump(maindict,output)
+    pickle.dump(similarity,output,-1)
+    output.close()
+    '''
+    pkl_file = open('initialdata'+str(i)+'.pkl','rb')
+    maindict = pickle.load(pkl_file)
+    similarity = pickle.load(pkl_file)
+    pkl_file.close()
+
+
+    #ans = 0
+
+    #for i in range(len(u1test)):
+    #    similaruseri = k_similar_users(u1test[i][0],similarity,20)
+    #    x = predict1(similaruseri,u1base,u1test[i][1],maindict)
+    #    ans = ans + pow( x - int(u1test[i][2]),2)
+
+    #print math.sqrt(ans/len(u1test))
+
+    arr = []
+    arr2 = []
+    for k in range(1,251):
+        print 'U'+str(i)+' --> iteration for k = '+str(k)
+        ans = 0
+        for j in range(len(u1test)):
+            similaruseri = k_watched_users(u1test[j][0],similarity,maindict,u1test[j][1],k)
+            x = predict1(similaruseri,u1base,u1test[j][1],maindict)
+            ans = ans + pow( x - int(u1test[j][2]),2)
+        arr.append(math.sqrt(ans/len(u1test)))
+        arr2.append(k)
+    plt.figure()    
+    plt.plot(arr2,arr)
+    plt.title('Root Mean Square vs K nearest neighbous in UBCF')
+    plt.xlabel('K')
+    plt.ylabel('RMSE')
+    plt.savefig('K_watched_users_datasplit_'+str(i)+'.png')
+
+    
 
 
 
-'''
-print 'building_dictionary'
-maindict = build_dict(u1base)
-print 'building_similarity matrix'
-similarity = compute_similarity(userinfo,maindict)
-print 'done'
-
-output = open('initialdata.pkl','wb')
-pickle.dump(maindict,output)
-pickle.dump(similarity,output,-1)
-output.close()
-
-'''
-pkl_file = open('initialdata.pkl','rb')
-maindict = pickle.load(pkl_file)
-similarity = pickle.load(pkl_file)
-pkl_file.close()
-
-
-
-ans = 0
-
-for i in range(len(u1test)):
-    #print u1test[i]
-    similaruseri = k_similar_users(u1test[i][0],u1base,20)
-    #print similaruseri
-    #print "---------\n"
-    x = predict1(similaruseri,u1base,u1test[i][1],maindict)
-    print "Prediction "+ str(x)
-    ans = ans + pow( x - int(u1test[i][2]),2)
-    #print ans
-
-print ans
-
-ans = 0
-
-for i in range(len(u1test)):
-    #print u1test[i]
-    similaruseri = k_watched_users(u1test[i][0],similarity,maindict,u1test[i][1],20)
-    #print similaruseri
-    #print "---------\n"
-    x = predict1(similaruseri,u1base,u1test[i][1],maindict)
-    #print "Prediction "+ str(x)
-    ans = ans + pow( x - int(u1test[i][2]),2)
-    #print ans
-
-print ans
+    
